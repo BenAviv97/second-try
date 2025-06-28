@@ -3,6 +3,8 @@ import pickle
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
+from threading import Timer
+import datetime
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
@@ -43,6 +45,13 @@ def upload_video(youtube, file_path, title, description, tags=None, categoryId='
     print(f"Upload complete: {response['id']}")
     return response
 
+def schedule_upload(youtube, when, *args, **kwargs):
+    """Schedule an upload at the specified datetime."""
+    if isinstance(when, str):
+        when = datetime.datetime.fromisoformat(when)
+    delay = (when - datetime.datetime.now()).total_seconds()
+    Timer(max(0, delay), upload_video, args=(youtube,)+args, kwargs=kwargs).start()
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Upload a video to YouTube")
@@ -52,18 +61,31 @@ def main():
     parser.add_argument('--tags', nargs='*', help='Video tags separated by space')
     parser.add_argument('--category', default='22', help='YouTube category ID')
     parser.add_argument('--privacy', default='public', help='Video privacy status')
+    parser.add_argument('--schedule', help='Schedule upload at ISO datetime (YYYY-MM-DDTHH:MM)')
     args = parser.parse_args()
 
     youtube = authenticate()
-    upload_video(
-        youtube=youtube,
-        file_path=args.file,
-        title=args.title,
-        description=args.description,
-        tags=args.tags,
-        categoryId=args.category,
-        privacyStatus=args.privacy,
-    )
+    if args.schedule:
+        schedule_upload(
+            youtube,
+            args.schedule,
+            args.file,
+            args.title,
+            args.description,
+            args.tags,
+            args.category,
+            args.privacy,
+        )
+    else:
+        upload_video(
+            youtube=youtube,
+            file_path=args.file,
+            title=args.title,
+            description=args.description,
+            tags=args.tags,
+            categoryId=args.category,
+            privacyStatus=args.privacy,
+        )
 
 if __name__ == "__main__":
     main()
